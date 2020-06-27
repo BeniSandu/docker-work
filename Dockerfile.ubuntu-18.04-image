@@ -1,0 +1,46 @@
+ARG IMAGENAME
+ARG USER_ID
+ARG MIRROR_PATH
+ARG WR_PWD
+
+FROM $IMAGENAME
+
+#ENV TERM xterm
+#ENV DEBIAN_FRONTEND noninteractive
+
+RUN apt update
+RUN apt install -y apt-utils bash git build-essential locales sudo net-tools bash-completion cron
+RUN apt upgrade
+
+# Sometimes we have trouble with locales, so just make sure it's all good
+RUN locale-gen en_US.UTF-8
+RUN dpkg-reconfigure locales
+ENV LC_ALL en_US.UTF-8
+
+# Add my user and give it sudo access
+RUN useradd -m -s /bin/bash -g users -G users $USER_ID
+RUN echo "$USER_ID  ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+
+# Set up environment
+env USER $USER_ID
+env GIT_PASSWORD $WR_PWD
+env WUSER $USER_ID
+WORKDIR $MIRROR_PATH
+
+# Set up WR git mirror paths
+echo -e '[credential "https://windshare.windriver.com/remote.php/gitsmart/WRLinux-9-LTS-CVE/wrlinux-9"]\n\tusername = $USER_ID' > /home/$USER_ID/.gitconfig
+echo -e '[credential "https://windshare.windriver.com/remote.php/gitsmart/WRLinux-lts-17-Core/wrlinux-x"]\n\tusername = $USER_ID' >> /home/$USER_ID/.gitconfig
+echo -e '[credential "https://windshare.windriver.com/remote.php/gitsmart/WRLinux-lts-18-Core/wrlinux-x"]\n\tusername = $USER_ID' >> /home/$USER_ID/.gitconfig
+echo -e '[credential "https://windshare.windriver.com/remote.php/gitsmart/WRLinux-lts-19-Core/wrlinux-x"]\n\tusername = $USER_ID' >> /home/$USER_ID/.gitconfig
+
+# Copy scripts
+COPY git-askpass.sh $MIRROR_PATH
+COPY wrl-mirror.sh $MIRROR_PATH
+
+# Setup a cron job to check for updates once per day
+# Set them 1 min apart, but I really hope WR tools behave in case of multiple logins at the same time
+echo "00 23 * * * $USER_ID $MIRROR_PATH/wrl-mirror.sh -w 17 -p $MIRROR_PATH/wrl-17-mirror --update" >> /etc/crontab
+echo "01 23 * * * $USER_ID $MIRROR_PATH/wrl-mirror.sh -w 18 -p $MIRROR_PATH/wrl-18-mirror --update" >> /etc/crontab
+echo "02 23 * * * $USER_ID $MIRROR_PATH/wrl-mirror.sh -w 19 -p $MIRROR_PATH/wrl-19-mirror --update" >> /etc/crontab
+
+ENTRYPOINT ["/bin/bash"]

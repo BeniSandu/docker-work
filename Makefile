@@ -1,47 +1,46 @@
 # Makefile to build and use a Ubuntu docker container
 
 LINUX_DISTRO		= ubuntu
-LINUX_DISTRO_TAG	= 16.04
+LINUX_DISTRO_TAG	= 18.04
 
 LINUX_IMAGE		= $(LINUX_TAG)-image
 LINUX_TAG		= $(LINUX_DISTRO)-$(LINUX_DISTRO_TAG)
-LINUX_CONTAINER		= $(LINUX_TAG)-container
-LINUX_HOME		?= $(shell pwd)
-DOCKER_BIN		?= $(Q)/usr/bin/docker
+LINUX_CONTAINER_NAME	= wrl-mirror-updater
+MIRROR_PATH		= /home/beni/hdd1
+PODMAN_BIN		= $(shell which podman)
 USER_ID			= $(shell id -u -n)
-HOSTNAME		= docker-$(LINUX_TAG)
+HOSTNAME		= podman-$(LINUX_CONTAINER_NAME)
 
 ################################################################
 
-c.build-image: # Build Linux container image
-	$(eval docker_gid=$(shell getent group docker | cut -d: -f3))
-	$(DOCKER_BIN) build --pull -f Dockerfile.$(LINUX_IMAGE) \
+c.build-image: # Build container image from Dockerfile (this is done once per machine/repo)
+	$(PODMAN_BIN) build --pull -f Dockerfile.$(LINUX_IMAGE) \
 		--build-arg IMAGENAME=$(LINUX_DISTRO):$(LINUX_DISTRO_TAG) \
-		--build-arg LINUX_HOME=$(LINUX_HOME) \
-		--build-arg DOCKER_GID=$(docker_gid) \
+		--build-arg MIRROR_PATH=$(MIRROR_PATH) \
 		--build-arg USER_ID=$(USER_ID) \
+		--build-arg WR_PWD=$(WR_PWD) \
 		-t $(LINUX_IMAGE) .
 
-c.create: # Create the container
-	$(DOCKER_BIN) create -P --name=$(LINUX_CONTAINER) \
-		-v $(LINUX_HOME):$(LINUX_HOME) \
+c.create: # Create the container from image
+	$(PODMAN_BIN) create -P --name=$(LINUX_CONTAINER_NAME) \
+		-v $(MIRROR_PATH):$(MIRROR_PATH) \
 		-h $(HOSTNAME) \
 		-i $(LINUX_IMAGE)
 
 c.start: # Start the container
-	$(DOCKER_BIN) start $(LINUX_CONTAINER)
+	$(PODMAN_BIN) start $(LINUX_CONTAINER_NAME)
 
 c.shell: # Start a shell in the container with my user
-	$(DOCKER_BIN) exec -u $(USER_ID) -it $(LINUX_CONTAINER) /bin/bash
+	$(PODMAN_BIN) exec -u $(USER_ID) -it $(LINUX_CONTAINER_NAME) /bin/bash
 	
 c.rootshell: # Start a shell as root in the container
-	$(DOCKER_BIN) exec -u root -it $(LINUX_CONTAINER) /bin/bash
+	$(PODMAN_BIN) exec -u root -it $(LINUX_CONTAINER_NAME) /bin/bash
 
 c.stop: # Stop the container
-	$(DOCKER_BIN) stop $(LINUX_CONTAINER)
+	$(PODMAN_BIN) stop $(LINUX_CONTAINER_NAME)
 
 c.rm: # Remove the container
-	$(DOCKER_BIN) rm $(LINUX_CONTAINER)
+	$(PODMAN_BIN) rm $(LINUX_CONTAINER_NAME)
 
 c.rmi: # Remove the Linux image
-	$(DOCKER_BIN) rmi $(LINUX_IMAGE)
+	$(PODMAN_BIN) rmi $(LINUX_IMAGE_NAME)
